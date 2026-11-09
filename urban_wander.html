@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Urban Wander｜城市漫遊手帳</title>
+<style>
+:root {
+  --bg:#101719; --panel:#182326; --panel2:#202e31; --line:#344548;
+  --text:#edf3ef; --muted:#9aadaa; --accent:#9bd8c5; --danger:#ff8e83;
+}
+* { box-sizing:border-box; }
+body {
+  margin:0; min-height:100vh; background:var(--bg); color:var(--text);
+  font-family:system-ui,-apple-system,"Noto Sans TC",sans-serif;
+}
+header {
+  padding:22px 28px; border-bottom:1px solid var(--line);
+  display:flex; justify-content:space-between; align-items:center; gap:16px;
+}
+.journal-bar {
+  display:flex; align-items:center; flex-wrap:wrap; gap:14px 22px;
+  padding:15px 28px; background:#172326; border-bottom:1px solid var(--line);
+}
+.journal-title { color:var(--accent); font-size:12px; letter-spacing:.14em; font-weight:700; }
+.journal-field { display:flex; align-items:center; gap:9px; }
+.journal-field label { color:var(--muted); font-size:13px; white-space:nowrap; }
+.journal-field input, .journal-field select { width:auto; min-width:155px; }
+.journal-weather { font-size:18px; }
+.journal-note { color:var(--muted); font-size:12px; margin-left:auto; }
+h1 { margin:0; font-size:clamp(20px,3vw,27px); letter-spacing:.04em; }
+.subtitle { color:var(--muted); font-size:13px; margin-top:5px; }
+button, input, textarea, select { font:inherit; }
+button {
+  border:1px solid var(--line); background:var(--panel2); color:var(--text);
+  border-radius:9px; padding:9px 13px; cursor:pointer;
+}
+button:hover { border-color:var(--accent); }
+button.primary { background:var(--accent); color:#10201c; border-color:var(--accent); font-weight:700; }
+button.danger { color:var(--danger); }
+main { display:grid; grid-template-columns:minmax(0,1fr) 330px; gap:18px; padding:18px; max-width:1600px; margin:auto; }
+.map-panel,.sidebar { background:var(--panel); border:1px solid var(--line); border-radius:15px; overflow:hidden; }
+.panel-head { padding:15px 17px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:center; gap:12px; }
+.panel-head h2 { margin:0; font-size:15px; }
+.hint { color:var(--muted); font-size:12px; }
+.map-wrap { position:relative; height:min(72vh,720px); min-height:380px; background:#152023; }
+canvas { width:100%; height:100%; display:block; cursor:crosshair; }
+.map-footer { padding:11px 16px; color:var(--muted); font-size:12px; border-top:1px solid var(--line); }
+.sidebar { display:flex; flex-direction:column; min-height:500px; }
+.sidebar-tools { padding:13px; border-bottom:1px solid var(--line); }
+select,input,textarea {
+  width:100%; color:var(--text); background:#111b1d; border:1px solid var(--line);
+  border-radius:8px; padding:10px; outline:none;
+}
+input:focus,textarea:focus,select:focus { border-color:var(--accent); }
+.record-list { padding:10px; overflow:auto; display:flex; flex-direction:column; gap:9px; }
+.record {
+  border:1px solid var(--line); background:#1c292c; border-radius:10px; padding:11px;
+  cursor:pointer; text-align:left; width:100%;
+}
+.record.active { border-color:var(--accent); background:#263a38; }
+.record-top { display:flex; justify-content:space-between; gap:8px; align-items:center; }
+.record-name { font-weight:700; overflow-wrap:anywhere; }
+.record-meta,.record-note { color:var(--muted); font-size:12px; margin-top:6px; }
+.record-note { overflow-wrap:anywhere; white-space:pre-wrap; }
+.record-thumb { display:block; width:100%; max-height:150px; object-fit:cover; border-radius:7px; margin-top:9px; border:1px solid var(--line); }
+.mood-寧靜 { color:#9bd8c5; border-color:#579b85; }
+.mood-喧鬧 { color:#ffb36b; border-color:#b8793d; }
+.mood-開闊 { color:#8fc7ff; border-color:#5789bd; }
+.mood-封閉 { color:#d0a5ff; border-color:#9068bd; }
+.image-preview { display:none; max-width:100%; max-height:170px; object-fit:contain; margin-top:9px; border-radius:8px; border:1px solid var(--line); }
+.mood-legend { display:flex; flex-wrap:wrap; gap:8px; padding:10px 16px; border-top:1px solid var(--line); }
+.tag { display:inline-block; border:1px solid #55756d; color:var(--accent); border-radius:20px; padding:2px 8px; font-size:11px; }
+.delete-one { color:var(--danger); padding:4px 7px; font-size:12px; }
+.empty { color:var(--muted); text-align:center; padding:28px 12px; font-size:13px; }
+.count { color:var(--muted); font-size:12px; }
+.modal-backdrop {
+  position:fixed; inset:0; background:#0009; display:none; place-items:center;
+  padding:18px; z-index:5;
+}
+.modal-backdrop.show { display:grid; }
+.modal {
+  width:min(100%,440px); background:var(--panel); border:1px solid var(--line);
+  border-radius:15px; padding:20px; box-shadow:0 20px 70px #0008;
+}
+.modal h2 { margin:0 0 5px; font-size:19px; }
+.modal p { margin:0 0 17px; color:var(--muted); font-size:13px; }
+.field { margin:13px 0; }
+.field label { display:block; font-size:13px; margin-bottom:6px; color:#cbd8d3; }
+.error { color:var(--danger); min-height:20px; font-size:12px; margin-top:5px; }
+.modal-actions { display:flex; justify-content:flex-end; gap:9px; margin-top:16px; }
+@media(max-width:850px) {
+  .journal-bar { padding:13px 17px; }
+  .journal-note { width:100%; margin-left:0; }
+  main { grid-template-columns:1fr; padding:12px; }
+  .map-wrap { height:55vh; min-height:340px; }
+  .sidebar { min-height:300px; max-height:470px; }
+  header { padding:17px; }
+}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>URBAN WANDER <span style="color:var(--accent)">／</span> 城市漫遊手帳</h1>
+    <div class="subtitle">記錄日期、天氣與空間感受，收藏城市生活的片刻。</div>
+  </div>
+  <button class="danger" id="clearAll">清除所有紀錄</button>
+</header>
+
+<!-- 手帳頁首：日期與天氣 -->
+<section class="journal-bar" aria-label="今日手帳資訊">
+  <span class="journal-title">MY DAILY JOURNAL</span>
+  <div class="journal-field">
+    <label for="journalDate">日期</label>
+    <input type="date" id="journalDate">
+  </div>
+  <div class="journal-field">
+    <label for="journalWeather">今日天氣</label>
+    <select id="journalWeather">
+      <option value="晴天">☀️ 晴天</option>
+      <option value="多雲">⛅ 多雲</option>
+      <option value="陰天">☁️ 陰天</option>
+      <option value="雨天">🌧️ 雨天</option>
+      <option value="雷雨">⛈️ 雷雨</option>
+      <option value="雪天">❄️ 雪天</option>
+      <option value="霧天">🌫️ 霧天</option>
+      <option value="有風">🍃 有風</option>
+    </select>
+  </div>
+  <span class="journal-note">記下今天的天氣，也記下今天遇見的城市。</span>
+</section>
+
+<main>
+  <section class="map-panel">
+    <div class="panel-head">
+      <h2>空間探索地圖</h2>
+      <span class="hint">點擊網格任意位置新增記號</span>
+    </div>
+    <div class="map-wrap"><canvas id="map"></canvas></div>
+    <div class="mood-legend" aria-label="情緒顏色圖例">
+      <span class="tag mood-寧靜">● 寧靜</span>
+      <span class="tag mood-喧鬧">● 喧鬧</span>
+      <span class="tag mood-開闊">● 開闊</span>
+      <span class="tag mood-封閉">● 封閉</span>
+    </div>
+    <div class="map-footer">座標以地圖左上角為原點（0, 0）｜選取紀錄可聚焦地圖位置</div>
+  </section>
+
+  <aside class="sidebar">
+    <div class="panel-head">
+      <h2>我的空間紀錄</h2><span class="count" id="count">0 筆紀錄</span>
+    </div>
+    <div class="sidebar-tools">
+      <label class="hint" for="filter">依情緒標籤篩選</label>
+      <select id="filter" style="margin-top:7px">
+        <option value="全部">全部情緒</option>
+        <option>寧靜</option><option>喧鬧</option><option>開闊</option><option>封閉</option>
+      </select>
+    </div>
+    <div class="record-list" id="recordList"></div>
+  </aside>
+</main>
+
+<div class="modal-backdrop" id="modalBackdrop">
+  <form class="modal" id="recordForm" novalidate>
+    <h2>記錄一處空間</h2>
+    <p id="coordinateText">位置座標</p>
+    <div class="field">
+      <label for="placeName">地點名稱 *</label>
+      <input id="placeName" maxlength="40" placeholder="例如：巷口的老咖啡店">
+    </div>
+    <div class="field">
+      <label for="placeNote">空間筆記</label>
+      <textarea id="placeNote" rows="4" maxlength="500" placeholder="記下你看到的、聽到的或感受到的……"></textarea>
+    </div>
+    <div class="field">
+      <label for="placeImage">空間照片（選填，僅支援圖片，最大 1.5 MB）</label>
+      <input id="placeImage" type="file" accept="image/*">
+      <img id="imagePreview" class="image-preview" alt="照片預覽">
+      <div class="hint">照片會和紀錄一起儲存在目前瀏覽器中。</div>
+    </div>
+    <div class="field">
+      <label for="mood">情緒標籤 *</label>
+      <select id="mood">
+        <option value="">請選擇一種感受</option>
+        <option>寧靜</option><option>喧鬧</option><option>開闊</option><option>封閉</option>
+      </select>
+    </div>
+    <div class="error" id="formError" aria-live="polite"></div>
+    <div class="modal-actions">
+      <button type="button" id="cancelModal">取消</button>
+      <button class="primary" type="submit">儲存紀錄</button>
+    </div>
+  </form>
+</div>
+
+<script>
+/* ===== 可調整的主要參數 ===== */
+const GRID_SIZE = 40;                    // 網格間距（像素）
+const STORAGE_KEY = "urbanWanderRecords"; // localStorage 儲存名稱
+const JOURNAL_KEY = "urbanWanderJournalMeta"; // 手帳日期與天氣設定
+
+/* ===== 手帳日期與天氣 ===== */
+const journalDateEl = document.getElementById("journalDate");
+const journalWeatherEl = document.getElementById("journalWeather");
+const weatherIcons = {
+  "晴天":"☀️", "多雲":"⛅", "陰天":"☁️", "雨天":"🌧️",
+  "雷雨":"⛈️", "雪天":"❄️", "霧天":"🌫️", "有風":"🍃"
+};
+function getTodayString() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+function loadJournalMeta() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(JOURNAL_KEY) || "null");
+    return saved && typeof saved === "object" ? saved : {};
+  } catch { return {}; }
+}
+const savedJournalMeta = loadJournalMeta();
+journalDateEl.value = /^\d{4}-\d{2}-\d{2}$/.test(savedJournalMeta.date || "") ? savedJournalMeta.date : getTodayString();
+journalWeatherEl.value = Object.prototype.hasOwnProperty.call(weatherIcons, savedJournalMeta.weather) ? savedJournalMeta.weather : "晴天";
+function saveJournalMeta() {
+  try {
+    localStorage.setItem(JOURNAL_KEY, JSON.stringify({ date: journalDateEl.value, weather: journalWeatherEl.value }));
+  } catch { alert("手帳日期或天氣無法儲存，請確認瀏覽器允許使用本機儲存空間。"); }
+}
+journalDateEl.addEventListener("change", saveJournalMeta);
+journalWeatherEl.addEventListener("change", saveJournalMeta);
+
+/* ===== 資料與畫布 ===== */
+const canvas = document.getElementById("map");
+const ctx = canvas.getContext("2d");
+const listEl = document.getElementById("recordList");
+const filterEl = document.getElementById("filter");
+const modal = document.getElementById("modalBackdrop");
+const form = document.getElementById("recordForm");
+let records = loadRecords();
+let pendingPoint = null;
+let selectedId = null;
+
+function loadRecords() {
+  try {
+    const data = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+    if (!Array.isArray(data)) return [];
+    return data.filter(r =>
+      r && typeof r.id === "string" &&
+      typeof r.name === "string" && r.name.trim() &&
+      typeof r.note === "string" &&
+      ["寧靜","喧鬧","開闊","封閉"].includes(r.mood) &&
+      Number.isFinite(r.x) && Number.isFinite(r.y)
+    );
+  } catch {
+    return [];
+  }
+}
+function saveRecords() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+  } catch {
+    alert("無法儲存資料，請確認瀏覽器允許使用本機儲存空間。");
+  }
+}
+
+/* ===== Canvas 尺寸與地圖繪製 ===== */
+function resizeCanvas() {
+  const rect = canvas.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = Math.round(rect.width * dpr);
+  canvas.height = Math.round(rect.height * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  drawMap();
+}
+function drawMap() {
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = "#152023";
+  ctx.fillRect(0, 0, w, h);
+
+  // 繪製背景網格
+  ctx.beginPath();
+  ctx.strokeStyle = "#2b3b3e";
+  ctx.lineWidth = 1;
+  for (let x = 0; x <= w; x += GRID_SIZE) {
+    ctx.moveTo(x, 0); ctx.lineTo(x, h);
+  }
+  for (let y = 0; y <= h; y += GRID_SIZE) {
+    ctx.moveTo(0, y); ctx.lineTo(w, y);
+  }
+  ctx.stroke();
+
+  // 繪製已儲存的空間記號
+  records.forEach((r, index) => {
+    const active = r.id === selectedId;
+    ctx.beginPath();
+    ctx.arc(r.x, r.y, active ? 11 : 8, 0, Math.PI * 2);
+    const moodColors = { "寧靜":"#70cdb0", "喧鬧":"#ffad5c", "開闊":"#78baff", "封閉":"#c18cff" };
+    ctx.fillStyle = active ? "#ffffff" : (moodColors[r.mood] || "#9bd8c5");
+    ctx.fill();
+    ctx.strokeStyle = "#17302a";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.fillStyle = "#eaf5ef";
+    ctx.font = "12px system-ui";
+    ctx.fillText(String(index + 1), r.x + 13, r.y - 10);
+    if (active) {
+      ctx.beginPath();
+      ctx.arc(r.x, r.y, 17, 0, Math.PI * 2);
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+  });
+}
+window.addEventListener("resize", resizeCanvas);
+
+/* ===== 點擊地圖，開啟新增表單 ===== */
+canvas.addEventListener("click", event => {
+  const rect = canvas.getBoundingClientRect();
+  pendingPoint = {
+    x: Math.round(event.clientX - rect.left),
+    y: Math.round(event.clientY - rect.top)
+  };
+  document.getElementById("coordinateText").textContent =
+    `地圖座標：X ${pendingPoint.x} ／ Y ${pendingPoint.y}`;
+  form.reset();
+  pendingImage = "";
+  imagePreview.removeAttribute("src");
+  imagePreview.style.display = "none";
+  showError("");
+  modal.classList.add("show");
+  document.getElementById("placeName").focus();
+});
+function closeModal() {
+  modal.classList.remove("show");
+  pendingPoint = null;
+  pendingImage = "";
+}
+function showError(message) {
+  document.getElementById("formError").textContent = message;
+}
+document.getElementById("cancelModal").addEventListener("click", closeModal);
+modal.addEventListener("click", e => {
+  if (e.target === modal) closeModal();
+});
+document.getElementById("placeName").addEventListener("input", () => showError(""));
+document.getElementById("mood").addEventListener("change", () => showError(""));
+
+/* ===== 圖片上傳與預覽 ===== */
+let pendingImage = "";
+const imageInput = document.getElementById("placeImage");
+const imagePreview = document.getElementById("imagePreview");
+
+imageInput.addEventListener("change", () => {
+  showError("");
+  const file = imageInput.files && imageInput.files[0];
+  pendingImage = "";
+  imagePreview.removeAttribute("src");
+  imagePreview.style.display = "none";
+  if (!file) return;
+  if (!file.type.startsWith("image/")) {
+    imageInput.value = "";
+    return showError("請選擇圖片格式的檔案。");
+  }
+  if (file.size > 1.5 * 1024 * 1024) {
+    imageInput.value = "";
+    return showError("圖片大小不可超過 1.5 MB，請先縮小圖片再上傳。");
+  }
+  const reader = new FileReader();
+  reader.onload = () => {
+    pendingImage = String(reader.result || "");
+    imagePreview.src = pendingImage;
+    imagePreview.style.display = "block";
+  };
+  reader.onerror = () => showError("圖片讀取失敗，請重新選擇圖片。");
+  reader.readAsDataURL(file);
+});
+
+/* ===== 表單驗證與新增資料 ===== */
+form.addEventListener("submit", event => {
+  event.preventDefault();
+  const name = document.getElementById("placeName").value.trim();
+  const note = document.getElementById("placeNote").value.trim();
+  const mood = document.getElementById("mood").value;
+
+  if (!name) return showError("請輸入地點名稱。");
+  if (name.length > 40) return showError("地點名稱不可超過 40 個字。");
+  if (!mood) return showError("請選擇一種情緒標籤。");
+  if (!pendingPoint || !Number.isFinite(pendingPoint.x) || !Number.isFinite(pendingPoint.y))
+    return showError("座標資料有誤，請重新點擊地圖。");
+
+  const record = {
+    id: (crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random())),
+    name, note, mood, image: pendingImage,
+    date: journalDateEl.value || getTodayString(),
+    weather: journalWeatherEl.value,
+    x: pendingPoint.x, y: pendingPoint.y,
+    createdAt: new Date().toISOString()
+  };
+  records.push(record);
+  selectedId = record.id;
+  saveRecords();
+  closeModal();
+  render();
+});
+
+/* ===== 清單、篩選、聚焦與刪除 ===== */
+function render() {
+  const filter = filterEl.value;
+  const visible = records.filter(r => filter === "全部" || r.mood === filter);
+  document.getElementById("count").textContent = `${records.length} 筆紀錄`;
+  listEl.innerHTML = "";
+
+  if (!visible.length) {
+    const empty = document.createElement("div");
+    empty.className = "empty";
+    empty.textContent = records.length ? "沒有符合此情緒的紀錄。" : "還沒有空間紀錄。點擊地圖開始探索吧！";
+    listEl.appendChild(empty);
+  }
+
+  visible.forEach(r => {
+    const card = document.createElement("div");
+    card.className = "record" + (r.id === selectedId ? " active" : "");
+    card.tabIndex = 0;
+    card.setAttribute("role", "button");
+    card.setAttribute("aria-label", `聚焦地點：${r.name}`);
+    const top = document.createElement("div");
+    top.className = "record-top";
+    const name = document.createElement("span");
+    name.className = "record-name";
+    name.textContent = r.name;
+    const tag = document.createElement("span");
+    tag.className = "tag mood-" + r.mood;
+    tag.textContent = r.mood;
+    top.append(name, tag);
+
+    const meta = document.createElement("div");
+    meta.className = "record-meta";
+    const recordDate = r.date || (r.createdAt ? r.createdAt.slice(0, 10) : "日期未記錄");
+    const recordWeather = r.weather || "天氣未記錄";
+    meta.textContent = `${recordDate}　${weatherIcons[recordWeather] || "🌤️"} ${recordWeather}　｜　座標 (${r.x}, ${r.y})`;
+    const note = document.createElement("div");
+    note.className = "record-note";
+    note.textContent = r.note || "尚未填寫筆記";
+
+    const del = document.createElement("button");
+    del.className = "delete-one";
+    del.type = "button";
+    del.textContent = "刪除";
+    del.addEventListener("click", e => {
+      e.stopPropagation();
+      if (!confirm(`確定刪除「${r.name}」這筆紀錄嗎？`)) return;
+      records = records.filter(item => item.id !== r.id);
+      if (selectedId === r.id) selectedId = null;
+      saveRecords();
+      render();
+    });
+    top.appendChild(del);
+    card.append(top, meta, note);
+    if (r.image) {
+      const thumb = document.createElement("img");
+      thumb.className = "record-thumb";
+      thumb.src = r.image;
+      thumb.alt = `${r.name} 的空間照片`;
+      card.appendChild(thumb);
+    }
+    const focusRecord = () => {
+      selectedId = r.id;
+      render();
+      drawMap();
+    };
+    card.addEventListener("click", focusRecord);
+    card.addEventListener("keydown", e => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault(); focusRecord();
+      }
+    });
+    listEl.appendChild(card);
+  });
+  drawMap();
+}
+filterEl.addEventListener("change", render);
+
+/* ===== 清除全部紀錄 ===== */
+document.getElementById("clearAll").addEventListener("click", () => {
+  if (!records.length) return alert("目前沒有任何紀錄。");
+  if (!confirm("確定清除所有空間紀錄嗎？此操作無法復原。")) return;
+  records = [];
+  selectedId = null;
+  saveRecords();
+  render();
+});
+
+/* ===== 啟動 ===== */
+resizeCanvas();
+render();
+</script>
+</body>
+</html>
